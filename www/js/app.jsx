@@ -1,3 +1,6 @@
+var flux = fluxify || require('./Flux.js');
+console.log(flux)
+
 var Channel = React.createClass({
 	select: function(e) {
 		e.preventDefault();
