@@ -1,10 +1,10 @@
-var flux = fluxify || require('./Flux.js');
-console.log(flux)
+var Dispatcher = null;
 
 var Channel = React.createClass({
 	select: function(e) {
 		e.preventDefault();
-		this.props.select(this.props.name)
+		Dispatcher.dispatch({actionType: "set", key: "raid", value: ""});
+		Dispatcher.dispatch({actionType: "set", key: "channel", value:this.props.name});
 	},
 	render: function() {
 		var classes = [ "raidChannel" ];
@@ -43,7 +43,6 @@ var ChannelList = React.createClass({
 					key={channels[i]}
 					number={channelRaids[i]}
 					name={channels[i]}
-					select={this.props.select}
 					selected={this.props.selected}/> );
 			}
 			channelList = channels
@@ -60,7 +59,7 @@ var ChannelList = React.createClass({
 
 var Raid = React.createClass({
 	click: function(e) {
-		this.props.select(this.props.data.uuid);
+		Dispatcher.dispatch({actionType: "set", key: "raid", value: this.props.data.uuid});
 		e.preventDefault();
 	},
 	render: function() {
@@ -327,27 +326,31 @@ var HostForm = React.createClass({
 	},
 	submit: function(e) {
 		if ( this.state.channel == "" ) {
-			this.setState({error: "please select a channel"});
+			Dispatcher.dispatch({actionType: "set", key: "error", value: "please select a channel"});
 			return;
 		}
 		if ( this.state.raid == "" ) {
-			this.setState({error: "please enter an event name"});
+			Dispatcher.dispatch({actionType: "set", key: "error", value: "please enter an event name"});
 			return;
 		}
 		jQuery.post("/rest/raid/host", {channel: this.state.channel, raid: this.state.raid})
 			.done(function(data) {
-				this.setState({error: ""});
+				Dispatcher.dispatch({actionType: "set", key: "error", value: ""});
 				this.props.cancel(e)
 			}.bind(this))
 			.fail(function(data) {
 				if ( data.status == 403 ) {
 					location.reload(true);
 				}
-				this.setState({error: data.responseText});
+				Dispatcher.dispatch({actionType: "set", key: "error", value: responseText});
 			}.bind(this));
 	},
-	handleRaid: function(event) { this.setState({raid: event.target.value}); },
-	handleChannel: function(event) { this.setState({channel: event.target.value}); },
+	handleRaid: function(event) { 
+		Dispatcher.dispatch({actionType: "set", key: "raid", value: event.target.value});
+	},
+	handleChannel: function(event) {
+		Dispatcher.dispatch({actionType: "set", key: "channel", value: event.target.value});
+	},
 	render: function() {
 		var channels = [
 			"",
@@ -402,18 +405,7 @@ var HostForm = React.createClass({
 
 var App = React.createClass({
 	getInitialState: function() {
-		return {
-			authenticated: false,
-			checkedUsername: false,
-			username: "",
-			channel: "",
-			raid: "",
-			checked: false,
-			command: "",
-			updated_at: "",
-			hosting: false,
-			channels: [],
-		};
+		return Datastore.data
 	},
 	post: function(what, data) {
 		jQuery.post("/rest/raid/" + what, data)
@@ -441,26 +433,22 @@ var App = React.createClass({
 	finishRaid: function(channel, raid) {
 		this.post( "finish", { channel: channel, raid: raid });
 	},
-	
-	selectRaid: function(uuid) {
-		this.setState({ raid: uuid });
-	},
-	selectChannel: function(name) {
-		this.setState({ channel: name, raid: "" });
-	},
-	
 	componentDidMount: function() {
 		jQuery.getJSON("/rest/login/check")
 			.done(function(data) {
 				if ( typeof data.username == "string" && data.username != "" ) {
-					this.setState({authenticated: true, username: data.username, checked: true, command: data.cmd});
+					Dispatcher.dispatch({actionType: "set", key: "cmd", value: data.cmd});
+					Dispatcher.dispatch({actionType: "set", key: "checked", value: true});
+					Dispatcher.dispatch({actionType: "set", key: "username", value: data.username});
+					Dispatcher.dispatch({actionType: "set", key: "authenticated", value: true});
 				} else {
-					this.setState({checked: true, command: data.cmd})
+					Dispatcher.dispatch({actionType: "set", key: "cmd", value: data.cmd});
+					Dispatcher.dispatch({actionType: "set", key: "checked", value: true});
 				}
+				Datastore.subscribe(this.acceptData.bind(this))
 				this.updateData();
 			}.bind(this));
 	},
-	
 	updateData: function() {
 		if ( this.state.authenticated == false ) {
 			window.setTimeout(this.updateData, 1000);
@@ -468,14 +456,7 @@ var App = React.createClass({
 		}
 		jQuery.getJSON("/rest/get?since="+this.state.updated_at)
 			.done(function(data) {
-				if ( this.state.raid != "" ) {
-					if ( typeof data.raids[this.state.channel] == "undefined" ||
-						 typeof data.raids[this.state.channel][this.state.raid] == "undefined" ) {
-						data.raid = "";
-						data.channel == "";
-					}
-				}
-				this.setState(data)
+				Dispatcher.dispatch({actionType: "serverStateUpdate", data: data});
 			}.bind(this))
 			.fail(function(data) {
 				if ( data.status == 403 ) {
@@ -486,7 +467,11 @@ var App = React.createClass({
 				window.setTimeout(this.updateData, 250);
 			}.bind(this))
 	},
+	acceptData: function(newData) {
+		this.setState(newData);
+	},
 	render: function() {
+		console.log(this)
 		if ( this.state.checked == false ) {
 			return (<div/>);
 		}
@@ -527,7 +512,7 @@ var App = React.createClass({
 					<div className="container-fluid">
 						<div className="row">
 							<HostForm channels={this.state.channels} cancel={function() {
-								this.setState({hosting: false});
+								Dispatcher.dispatch({actionType: "set", key: "hosting", value: false});
 							}.bind(this)}/>
 						</div>
 					</div>
@@ -539,7 +524,7 @@ var App = React.createClass({
 					<button
 						onClick={function(e) {
 							e.preventDefault();
-							this.setState({hosting: true});
+							Dispatcher.dispatch({actionType: "set", key: "hosting", value: true});	
 						}.bind(this)}
 						className="btn btn-default btn-block btn-success">Host an Event</button>
 		);
@@ -577,6 +562,53 @@ var App = React.createClass({
 	},
 });
 
+var Datastore = {
+	callbacks: [],
+	data: {
+		raid: "", // Selected Raid UUID
+		channel: "", // Selected Raid Channel
+		authenticated: false,
+		checkedUsername: false,
+		username: "",
+		checked: false,
+		command: "",
+		updated_at: "",
+		hosting: false,
+		channels: [],
+	},
+	subscribe: function(callback) {
+		this.callbacks.push(callback);
+	},
+	setThing: function(thing, value) {
+		this.data[thing] = value;
+		this.emitChange();
+	},
+	emitChange: function() {
+		for( var i = 0; i < this.callbacks.length; i++ ) {
+			this.callbacks[i]( this.data );
+		}
+	}
+}
+
+if ( typeof fluxify == "undefined" ) {
+	var Flux = require('./Flux.js');
+	Dispatcher =  new Flux.Dispatcher();
+} else {
+	Dispatcher = fluxify.dispatcher;
+}
+
+Dispatcher.register(function(payload) {
+	var doReRender = false;
+	switch ( payload.actionType ) {
+		case "serverStateUpdate":
+			for ( var i in payload.data ) {
+				Datastore.data[i] = payload.data[i];
+			}
+			Datastore.emitChange();
+		case "set":
+			Datastore.setThing(payload.key, payload.value);
+	}
+});
 
 jQuery(document).ready(function() {
 	React.render(<App />, document.getElementById('app'));
