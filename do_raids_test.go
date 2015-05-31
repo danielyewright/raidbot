@@ -124,3 +124,34 @@ func TestJoin(t *testing.T) {
 		}
 	}
 }
+
+func TestLeaveAlt(t *testing.T) {
+	if _, err := raidDb.leaveAlt("testChannel", "testName", "notAnAlt"); err == nil {
+		t.Error("Expected error alt-leaving a raid which I am not an alt for, got nil")
+	}
+	if _, err := raidDb.leaveAlt("testChannel", "testWrongName", "userTwo"); err == nil {
+		t.Error("Expected error alt-leaving a raid which does not exist, got nil")
+	}
+	if _, err := raidDb.leaveAlt("testWrongChannel", "testName", "userTwo"); err == nil {
+		t.Error("Expected error alt-leaving a raid on a channel which does not exist, got nil")
+	}
+	if repl, err := raidDb.leaveAlt("testChannel", "testName", "userTwo"); err != nil {
+		t.Errorf(
+			"Expected nil error alt-leaving a raid, got: %s",
+			err.Error(),
+		)
+	} else {
+		if repl != raidDb.data["testChannel"][0].Members[0] {
+			t.Errorf(
+				"Expected leader of raid as return reply for alt-leaving, got: %s",
+				repl,
+			)
+		}
+		if l := len(raidDb.data["testChannel"][0].Alts); l != 2 {
+			t.Errorf(
+				"Expected 2 alts after leaving 3rd spot, got: %d",
+				l,
+			)
+		}
+	}
+}
