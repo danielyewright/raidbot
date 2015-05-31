@@ -8,7 +8,7 @@ func TestInitEmptyRaids(t *testing.T) {
 	}
 }
 
-func TestAddRegister(t *testing.T) {
+func TestRegister(t *testing.T) {
 	if _, err := raidDb.members("testChannel", "testName"); err == nil {
 		t.Error("Expected unregistered raid to throw an error when listing members")
 	}
@@ -185,4 +185,24 @@ func TestLeave(t *testing.T) {
 			)
 		}
 	}
+}
+
+func TestFinish(t *testing.T) {
+	if err := raidDb.finish("testChannel", "testName", "testWrongUser"); err == nil {
+		t.Error("Expected error finishing raid as wrong user")
+	}
+	if err := raidDb.finish("testChannel", "testWrongName", "testUser"); err == nil {
+		t.Error("Expected error finishing wrong raid name")
+	}
+	if err := raidDb.finish("testWrongChannel", "testName", "testUser"); err == nil {
+		t.Error("Expected error finishing raid on wrong channel")
+	}
+	if err := raidDb.finish("testChannel", "testName", "testUser"); err != nil {
+		t.Errorf("Expected nil error finishing raid, got: %s", err.Error())
+	}
+	// TODO: Test admin functionality
+}
+
+func TestExpire(t *testing.T) {
+	// TODO
 }
